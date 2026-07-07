@@ -7,7 +7,7 @@ const KATA_SANDI_ADMIN = "tanyaibnu";
 // Batas Aturan Maksimum Kuota
 const kuotaMaksimal = {
     putra: { PERINTIS: 51, PENCOBA: 51, PENDOBRAK: 51, PENEGAS: 40, PELAKSANA: 40 },
-    putri: { PERINTIS: 62, PENCOBA: 62, PENDOBRAK: 51, PENEGAS: 51, PELAKSANA: 51 }
+    putri: { PERINTIS: 62, PENCOBA: 62, PENDOBRAK: 61, PENEGAS: 61, PELAKSANA: 61 }
 };
 
 // Metadata Identitas Warna Setiap Sangga (Sinkron ke Form & Tabel Admin)
