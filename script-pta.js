@@ -349,7 +349,15 @@ function togglePopUpMedsos(event) {
     }
 }
 
-window.addEventListener('click', function () {
+// Handle untuk desktop (click) dan mobile (touchend)
+document.addEventListener('click', function () {
+    const popUp = document.getElementById('popUpMedsos');
+    if (popUp) {
+        popUp.classList.add('hidden');
+    }
+});
+
+document.addEventListener('touchend', function () {
     const popUp = document.getElementById('popUpMedsos');
     if (popUp) {
         popUp.classList.add('hidden');
