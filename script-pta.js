@@ -1,5 +1,5 @@
 // 1. URL APPS SCRIPT
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0ij8cwbF6-HBt0gVa8cR2ZuV1ofJkWbT0n_NIFWansFiJTPxtY3BRAzCWbBq8R70v/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxrhZXbaL_MTQjkXXl4OlvKcCpBENtPxyiwkVqVe2GQEaWkjialNr-jvywXsDlpjkZA/exec";
 
 // KATA SANDI / KODE AKSES UNTUK MENU ADMIN
 const KATA_SANDI_ADMIN = "tanyaibnu";
