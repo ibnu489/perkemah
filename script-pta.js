@@ -7,7 +7,7 @@ const KATA_SANDI_ADMIN = "tanyaibnu";
 // Batas Aturan Maksimum Kuota
 const kuotaMaksimal = {
     putra: { PERINTIS: 51, PENCOBA: 51, PENDOBRAK: 51, PENEGAS: 40, PELAKSANA: 40 },
-    putri: { PERINTIS: 62, PENCOBA: 62, PENDOBRAK: 61, PENEGAS: 61, PELAKSANA: 61 }
+    putri: { PERINTIS: 62, PENCOBA: 62, PENDOBRAK: 51, PENEGAS: 51, PELAKSANA: 51 }
 };
 
 // Metadata Identitas Warna Setiap Sangga (Sinkron ke Form & Tabel Admin)
@@ -21,6 +21,7 @@ const sanggaMeta = {
 
 let listPendaftarServer = [];
 let isSubmitting = false;
+let sudahSubmit = false; // Flag untuk tracking submit 1x
 
 // Normalisasi nilai gender dari data server atau input form
 function normalizeGenderValue(val) {
@@ -193,6 +194,12 @@ function handleFormSubmit(event) {
 
     if (isSubmitting) return; // prevent re-entrancy
 
+    // CEK APAKAH SUDAH SUBMIT SEBELUMNYA (CLIENT-SIDE CHECK)
+    if (sudahSubmit || localStorage.getItem('sudahSubmitPendaftaran')) {
+        alert("❌ Anda sudah melakukan pendaftaran sebelumnya. Hanya bisa submit 1x!");
+        return;
+    }
+
     if (!jkNorm) {
         alert("Silakan pilih Jenis Kelamin terlebih dahulu!");
         return;
@@ -202,20 +209,64 @@ function handleFormSubmit(event) {
         return;
     }
 
-    // Validasi sisa kuota server sebelum mengirim data
-    const kuotaTerisi = hitungKuotaTerisi();
-    if ((kuotaTerisi[jkNorm] ? (kuotaTerisi[jkNorm][sangga] || 0) : 0) >= (kuotaMaksimal[jkNorm] ? (kuotaMaksimal[jkNorm][sangga] || 0) : 0)) {
-        alert(`Maaf, Sangga ${sangga} untuk kategori ${jkRaw || jkNorm} baru saja penuh. Silakan pilih sangga yang lain.`);
-        muatDataDariServer();
-        return;
+    if (btnKirim) {
+        btnKirim.disabled = true;
+        btnKirim.textContent = "Sedang Validasi Data Real-time...";
     }
+
+    isSubmitting = true;
+
+    // Fetch data terbaru dari server sebelum validasi (real-time check)
+    fetch(SCRIPT_URL)
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok: ' + response.status);
+            return response.json().catch(err => { throw new Error('Invalid JSON from server: ' + err.message); });
+        })
+        .then(resData => {
+            // Update data dengan versi terbaru dari server
+            if (resData && resData.status === 'success') {
+                listPendaftarServer = Array.isArray(resData.data) ? resData.data : [];
+            } else {
+                throw new Error('Server returned unexpected payload');
+            }
+
+            // Validasi sisa kuota server dengan data terbaru
+            const kuotaTerisi = hitungKuotaTerisi();
+            const terisiSekarang = kuotaTerisi[jkNorm] ? (kuotaTerisi[jkNorm][sangga] || 0) : 0;
+            const maksimalSlot = kuotaMaksimal[jkNorm] ? (kuotaMaksimal[jkNorm][sangga] || 0) : 0;
+
+            if (terisiSekarang >= maksimalSlot) {
+                isSubmitting = false;
+                if (btnKirim) {
+                    btnKirim.disabled = false;
+                    btnKirim.textContent = "Kirim Pendaftaran";
+                }
+                alert(`Maaf, Sangga ${sangga} untuk kategori ${jkRaw || jkNorm} sudah PENUH (${terisiSekarang}/${maksimalSlot}). Silakan pilih sangga yang lain.`);
+                updateSanggaOptions(); // Refresh tampilan opsi sangga
+                return;
+            }
+
+            // Jika validasi lolos, lanjutkan mengirim form
+            submitFormData(namaEl, kelasEl, nama, kelas, jkNorm, sangga, btnKirim);
+        })
+        .catch(error => {
+            console.error("Gagal validasi real-time:", error);
+            isSubmitting = false;
+            if (btnKirim) {
+                btnKirim.disabled = false;
+                btnKirim.textContent = "Kirim Pendaftaran";
+            }
+            alert('Gagal terhubung ke server untuk validasi. Periksa koneksi internet Anda.');
+        });
+}
+
+// Fungsi helper untuk mengirim data form (dipanggil setelah validasi berhasil)
+function submitFormData(namaEl, kelasEl, nama, kelas, jkNorm, sangga, btnKirim) {
 
     if (btnKirim) {
         btnKirim.disabled = true;
         btnKirim.textContent = "Sedang Mengirim ke Server...";
     }
-
-    isSubmitting = true;
 
     const formData = new FormData();
     formData.append('nama', nama);
@@ -229,24 +280,51 @@ function handleFormSubmit(event) {
             return response.json();
         })
         .then(res => {
-            const alertBox = document.getElementById('successAlert');
-            if (alertBox) alertBox.classList.remove('hidden');
+            // CEK RESPONSE STATUS DARI SERVER
+            if (res.status === 'success') {
+                // BERHASIL SUBMIT - SIMPAN KE LOCALSTORAGE
+                localStorage.setItem('sudahSubmitPendaftaran', 'true');
+                sudahSubmit = true;
+                
+                const alertBox = document.getElementById('successAlert');
+                if (alertBox) alertBox.classList.remove('hidden');
 
-            // Reset Form Isian setelah berhasil terkirim
-            if (namaEl) namaEl.value = '';
-            if (kelasEl) kelasEl.selectedIndex = 0;
-            document.querySelectorAll('input[name="jk"]').forEach(el => el.checked = false);
-            const sanggaContainer = document.getElementById('sangga-options-container');
-            if (sanggaContainer) sanggaContainer.innerHTML = '';
+                // Reset Form Isian setelah berhasil terkirim
+                if (namaEl) namaEl.value = '';
+                if (kelasEl) kelasEl.selectedIndex = 0;
+                document.querySelectorAll('input[name="jk"]').forEach(el => el.checked = false);
+                const sanggaContainer = document.getElementById('sangga-options-container');
+                if (sanggaContainer) sanggaContainer.innerHTML = '';
 
-            const hintSangga = document.getElementById('hint-sangga');
-            if (hintSangga) hintSangga.classList.remove('hidden');
+                const hintSangga = document.getElementById('hint-sangga');
+                if (hintSangga) hintSangga.classList.remove('hidden');
 
-            if (alertBox) alertBox.scrollIntoView({ behavior: 'smooth' });
-            muatDataDariServer();
+                // Disable button dan form setelah submit sukses
+                disableFormSetelahSubmit();
+
+                if (alertBox) alertBox.scrollIntoView({ behavior: 'smooth' });
+                muatDataDariServer();
+            } else if (res.status === 'failed') {
+                // DITOLAK SERVER (KUOTA PENUH)
+                isSubmitting = false;
+                if (btnKirim) {
+                    btnKirim.disabled = false;
+                    btnKirim.textContent = "Kirim Pendaftaran";
+                }
+                alert(`❌ ${res.message || 'Pendaftaran ditolak oleh server'}`);
+                updateSanggaOptions(); // Refresh tampilan opsi sangga
+                muatDataDariServer(); // Update data terbaru
+            } else {
+                throw new Error(res.message || 'Response tidak dikenali');
+            }
         })
         .catch(error => {
             console.error('Error!', error && error.message ? error.message : error);
+            isSubmitting = false;
+            if (btnKirim) {
+                btnKirim.disabled = false;
+                btnKirim.textContent = "Kirim Pendaftaran";
+            }
             alert('Gagal mengirim pendaftaran, pastikan HP Anda terhubung ke internet.');
         })
         .finally(() => {
@@ -294,6 +372,36 @@ function renderTabelAdmin() {
             </tr>
         `;
     });
+}
+
+// Fungsi untuk disable form setelah submit sukses
+function disableFormSetelahSubmit() {
+    const form = document.querySelector('form');
+    if (form) {
+        const allInputs = form.querySelectorAll('input, select, button, textarea');
+        allInputs.forEach(el => {
+            if (el.id !== 'btnKirim' && el.tagName !== 'BUTTON') {
+                el.disabled = true;
+            }
+        });
+    }
+    
+    const btnKirim = document.getElementById('btnKirim');
+    if (btnKirim) {
+        btnKirim.disabled = true;
+        btnKirim.textContent = "✓ Sudah Terkirim (Hanya 1x Submit)";
+        btnKirim.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// Fungsi untuk cek saat halaman dimuat
+function cekStatusSubmit() {
+    if (localStorage.getItem('sudahSubmitPendaftaran')) {
+        sudahSubmit = true;
+        disableFormSetelahSubmit();
+        const alertBox = document.getElementById('successAlert');
+        if (alertBox) alertBox.classList.remove('hidden');
+    }
 }
 
 // Proteksi Akses Kata Sandi Panel Admin
@@ -387,4 +495,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Memulai penarikan database otomatis saat pertama kali dibuka
     muatDataDariServer();
+
+    // Auto-refresh data setiap 30 detik untuk mencegah race condition
+    setInterval(muatDataDariServer, 30000);
+
+    // CEK APAKAH SISWA SUDAH SUBMIT SEBELUMNYA
+    cekStatusSubmit();
 });
